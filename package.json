@@ -1,0 +1,57 @@
+{
+  "name": "artisan",
+  "version": "0.1.0",
+  "license": "MIT",
+  "files": [
+    "data/dictionary.json",
+    "data/weights.json",
+    "dist"
+  ],
+  "scripts": {
+    "annotate-corpus": "node --import tsx/esm ./scripts/annotate-corpus.ts",
+    "audit-rules": "node --import tsx/esm ./scripts/audit-rules.ts",
+    "build": "tsc --build",
+    "build-corpus-stats": "node --import tsx/esm ./scripts/build-corpus-stats.ts",
+    "build-dictionary": "node --import tsx/esm ./scripts/build-dictionary.ts",
+    "build-likelihoods": "node --import tsx/esm ./scripts/build-likelihoods.ts",
+    "build-model": "node --import tsx/esm ./scripts/build-model.ts",
+    "build-preposition-pairs": "node --import tsx/esm ./scripts/build-preposition-pairs.ts",
+    "clean": "tsc --build --clean",
+    "compare-taggers": "node --import tsx/esm ./scripts/compare-taggers.ts",
+    "evaluate-features": "node --import tsx/esm ./scripts/evaluate-features.ts",
+    "fetch-paraphrases": "node --import tsx/esm ./scripts/fetch-paraphrases.ts",
+    "format": "prettier --check .",
+    "format:write": "prettier --write .",
+    "lint": "eslint .",
+    "review-annotations": "node --import tsx/esm ./scripts/review-annotations.ts",
+    "start": "node --import tsx/esm ./scripts/start.ts",
+    "test": "node --test --experimental-test-coverage --import tsx/esm test/**/*.test.ts",
+    "test-tagger": "node --import tsx/esm ./scripts/test-tagger.ts",
+    "train-from-annotations": "node --import tsx/esm ./scripts/train-from-annotations.ts",
+    "typecheck": "tsc --build --force"
+  },
+  "devDependencies": {
+    "@types/node": "22.18.1",
+    "averaged-perceptron": "3.0.0",
+    "eslint": "9.31.0",
+    "eslint-config-pretty-strict": "10.0.0",
+    "prettier": "3.6.2",
+    "tsx": "4.20.3",
+    "typescript": "5.8.3",
+    "typescript-eslint": "8.37.0"
+  },
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./*": {
+      "types": "./dist/*/index.d.ts",
+      "default": "./dist/*/index.js"
+    },
+    "./dictionary.json": "./data/dictionary.json",
+    "./weights.json": "./data/weights.json"
+  }
+}

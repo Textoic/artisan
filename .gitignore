@@ -1,0 +1,9 @@
+data/tagger-data/json-dataset-pagination.json
+data/tagger-data/*.txt
+data/tagger-data/annotation-review.json
+# Downloaded corpus samples and cached model replies. Both are reproducible:
+# the sample from its seed, the cache by asking the models again.
+data/corpus
+*.tsbuildinfo
+dist
+node_modules
