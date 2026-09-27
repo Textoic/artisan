@@ -2,7 +2,7 @@
 
 Research in natural language processing began decades ago and yet there are no models anywhere close to imitating an actual human's parse. Recent models are immense deep learning models with [prohibitively high costs and externalities](https://arxiv.org/pdf/1906.02243.pdf) that use massive amounts of energy to learn a language's grammatical rules. Rules that every speaker of a language knows intuitively.
 
-Artisan is an attempt to create a framework for an NLP pipeline that researchers can extend and the industry can use. You can find the code at [its official repository](https://github.com/fpluis/artisan). It has been designed and built with the following considerations:
+Artisan is an attempt to create a framework for an NLP pipeline that researchers can extend and the industry can use. You can find the code at [its official repository](https://github.com/Textoic/artisan). It has been designed and built with the following considerations:
 - 100% __client-side__ which opens many use-cases and guarantees __privacy__ and __safety__.
 - Works fast enough for __real-time__ applications.
 - Tolerates __ungrammatic and inconsistent texts__ such as tweets and arbitrary Internet user posts.

@@ -3,7 +3,7 @@
 ## Installation
 
 ```
-npm install artisan-nlp
+npm install @textoic/artisan
 ```
 
 Artisan is a composable Natural Language Processing library designed and built with the following considerations:

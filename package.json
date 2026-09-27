@@ -1,11 +1,28 @@
 {
-  "name": "artisan",
+  "name": "@textoic/artisan",
   "version": "0.1.0",
+  "description": "A client-side, dependency-free English tokenizer, tagger and dependency parser.",
+  "keywords": [
+    "nlp",
+    "tokenizer",
+    "pos-tagger",
+    "dependency-parser",
+    "english"
+  ],
+  "homepage": "https://github.com/Textoic/artisan#readme",
+  "bugs": {
+    "url": "https://github.com/Textoic/artisan/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Textoic/artisan.git"
+  },
   "license": "MIT",
   "files": [
     "data/dictionary.json",
     "data/weights.json",
-    "dist"
+    "dist",
+    "!dist/.tsbuildinfo"
   ],
   "scripts": {
     "annotate-corpus": "node --import tsx/esm ./scripts/annotate-corpus.ts",
@@ -23,6 +40,7 @@
     "format": "prettier --check .",
     "format:write": "prettier --write .",
     "lint": "eslint .",
+    "prepare": "npm run build",
     "review-annotations": "node --import tsx/esm ./scripts/review-annotations.ts",
     "start": "node --import tsx/esm ./scripts/start.ts",
     "test": "node --test --experimental-test-coverage --import tsx/esm test/**/*.test.ts",
@@ -40,7 +58,7 @@
     "typescript": "5.8.3",
     "typescript-eslint": "8.37.0"
   },
-  "private": true,
+  "private": false,
   "type": "module",
   "exports": {
     ".": {
@@ -53,5 +71,8 @@
     },
     "./dictionary.json": "./data/dictionary.json",
     "./weights.json": "./data/weights.json"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

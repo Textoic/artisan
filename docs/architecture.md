@@ -16,6 +16,20 @@ Nor does routine history: git already records what changed and when.
 
 ## Log
 
+### 2026-09-27 — `prepare` builds `dist` for git installs
+
+`dist` stays out of git. npm builds a git dependency only by running its
+`prepare` script. Without one, enlint's `git+https` install got `data/` and no
+`dist/`, and every import failed to resolve. `prepare` now runs
+`npm run build`. It also runs before `npm pack` and `npm publish`, so the
+tarball always carries a fresh build.
+
+### 2026-09-27 — Published as `@textoic/artisan`
+
+The name `artisan` on npm belongs to an unrelated package, so this one
+publishes under the `textoic` scope. npm makes a scoped package private by
+default. `publishConfig.access` makes it public.
+
 ## Design notes, by module
 
 ### `scripts/annotate-corpus.ts`
