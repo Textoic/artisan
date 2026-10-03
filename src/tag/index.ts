@@ -10,6 +10,8 @@ import {
   isCapitalizedWord,
   isGerund,
   isNegator,
+  isSubjectPronoun,
+  isSubstantiveNoun,
   isTimeModifier,
   negatesVerbGroup,
   tagOrder,
@@ -372,6 +374,70 @@ const isModalVerbComplement = ({ token, foreToken }: RuleArgs) =>
   foreToken.xpos === "VERB" &&
   Boolean(foreToken.feats.Mood) &&
   isBareInfinitiveComplement(token, foreToken);
+
+const isDoSupport = ({
+  xpos,
+  lemma,
+  feats: { VerbForm },
+}: PartiallyParsedToken) =>
+  xpos === "VERB" && lemma === "do" && VerbForm === "Fin";
+
+const questionWords = new Set(["why", "how", "when", "where", "what", "who"]);
+
+const opensAQuestion = (before: PartiallyParsedToken[], at: number) =>
+  at === 0 ||
+  before[at - 1].xpos === "START" ||
+  questionWords.has(String(before[at - 1].form).toLowerCase());
+
+const supportsAVerbAt = (before: PartiallyParsedToken[], at: number) => {
+  const next = before[at + 1] as PartiallyParsedToken | undefined;
+  return (
+    isDoSupport(before[at]) &&
+    (opensAQuestion(before, at) || (next != null && isNegator(next)))
+  );
+};
+
+const isBareInfinitive = ({
+  form = "",
+  lemma,
+  misc: { pos = {} },
+  feats: { Tense, VerbForm },
+}: PartiallyParsedToken) =>
+  Boolean(pos.VERB) &&
+  Tense === "Pres" &&
+  VerbForm === "Fin" &&
+  lemma === form.toLowerCase();
+
+const endsTheClause = (token: PartiallyParsedToken) =>
+  token.xpos === "PUNCT" ||
+  Boolean(token.misc.pos?.PUNCT) ||
+  token.feats.ConjType != null;
+
+const isTheVerbDoSupports = ({
+  tokens,
+  index,
+  token,
+  taggedWindow,
+}: RuleArgs) => {
+  if (!isBareInfinitive(token)) {
+    return false;
+  }
+
+  const before = [
+    ...tokens.slice(0, Math.max(0, index - taggedWindow.length)),
+    ...taggedWindow,
+  ];
+  const support = before
+    .map((_, at) => supportsAVerbAt(before, at))
+    .lastIndexOf(true);
+  const rest = tokens.slice(index + 1);
+  const clauseEnd = rest.findIndex(endsTheClause);
+  return (
+    support !== -1 &&
+    !before.slice(support + 1).some(({ xpos }) => xpos === "VERB") &&
+    !(clauseEnd === -1 ? rest : rest.slice(0, clauseEnd)).some(isBareInfinitive)
+  );
+};
 
 const isCompatibleVerb = ({
   taggedWindow,
@@ -1489,7 +1555,289 @@ const isWorthGerund = ({ token, aftToken, tokens, index }: RuleArgs) => {
   );
 };
 
+const isQuotationMark = ({ feats: { PunctType } }: PartiallyParsedToken) =>
+  PunctType === "Quot";
+
+const hypothesisBefore = ({ tokens, index, taggedWindow }: RuleArgs) =>
+  [
+    ...tokens.slice(0, Math.max(0, index - taggedWindow.length)),
+    ...taggedWindow.filter(({ xpos }) => xpos !== "START"),
+  ].filter((token) => !isQuotationMark(token));
+
+const closesARelativeClause = ({
+  xpos,
+  feats: { Mood, Tense, VerbForm },
+}: PartiallyParsedToken) =>
+  xpos === "VERB" &&
+  !Mood &&
+  (VerbForm === "Fin" || (Tense === "Past" && VerbForm == null));
+
+const isDeterminerWord = ({
+  xpos,
+  feats: { PronType },
+}: PartiallyParsedToken) => xpos === "ADJ" && PronType != null;
+
+const longestSubjectPhrase = 5;
+
+const determinedPhraseStart = (before: PartiallyParsedToken[], end: number) => {
+  let start = end;
+  while (
+    start >= 0 &&
+    end - start < longestSubjectPhrase &&
+    ["NOUN", "ADJ"].includes(String(before[start].xpos))
+  ) {
+    if (isDeterminerWord(before[start])) {
+      return start;
+    }
+
+    start -= 1;
+  }
+
+  return -1;
+};
+
+const subjectPhraseStart = (before: PartiallyParsedToken[], end: number) => {
+  if (end < 0 || before[end].xpos !== "NOUN") {
+    return -1;
+  }
+
+  return isSubjectPronoun(before[end])
+    ? end
+    : determinedPhraseStart(before, end);
+};
+
+const timeNouns = new Set([
+  "time",
+  "moment",
+  "second",
+  "minute",
+  "hour",
+  "day",
+  "night",
+  "morning",
+  "afternoon",
+  "evening",
+  "week",
+  "weekend",
+  "month",
+  "quarter",
+  "season",
+  "spring",
+  "summer",
+  "autumn",
+  "fall",
+  "winter",
+  "year",
+  "decade",
+  "today",
+  "tonight",
+  "tomorrow",
+  "yesterday",
+]);
+
+const clauseOpeners = new Set([
+  "that",
+  "why",
+  "how",
+  "because",
+  "and",
+  "but",
+  "so",
+  "or",
+  "yet",
+  "if",
+  "when",
+  "while",
+  "although",
+  "though",
+  "whether",
+  "unless",
+]);
+
+const isArticle = ({ feats: { PronType } }: PartiallyParsedToken) =>
+  PronType === "Art";
+
+const phraseOpening = (before: PartiallyParsedToken[], head: number) => {
+  let start = head;
+  while (start > 0 && before[start - 1].xpos === "ADJ") {
+    start -= 1;
+  }
+
+  return start;
+};
+
+const isAFrontedTimePhrase = (before: PartiallyParsedToken[], head: number) =>
+  timeNouns.has(String(before[head].lemma)) &&
+  !(head > 0 && isArticle(before[head - 1]));
+
+const opensItsClause = (before: PartiallyParsedToken[], head: number) => {
+  const opening = phraseOpening(before, head);
+  const governor = before[opening - 1] as PartiallyParsedToken | undefined;
+  return (
+    governor == null ||
+    (governor.xpos === "MARK" &&
+      clauseOpeners.has(String(governor.form).toLowerCase()))
+  );
+};
+
+const canAnchorARelativeClause = (
+  before: PartiallyParsedToken[],
+  head: number,
+) =>
+  isSubstantiveNoun(before[head]) &&
+  !isAFrontedTimePhrase(before, head) &&
+  opensItsClause(before, head);
+
+const unmarkedRelativeAntecedent = (args: RuleArgs) => {
+  const before = hypothesisBefore(args);
+  const relativeVerb = before[before.length - 1] as
+    | PartiallyParsedToken
+    | undefined;
+  if (relativeVerb == null || !closesARelativeClause(relativeVerb)) {
+    return undefined;
+  }
+
+  const head = subjectPhraseStart(before, before.length - 2) - 1;
+  return head >= 0 && canAnchorARelativeClause(before, head)
+    ? before[head]
+    : undefined;
+};
+
+const opensAnotherClause = (token: PartiallyParsedToken) =>
+  token.xpos === "PUNCT" ||
+  Boolean(token.misc.pos?.PUNCT) ||
+  token.feats.ConjType != null;
+
+const isMostlyAVerb = ({ xpos, misc: { pos = {} } }: PartiallyParsedToken) =>
+  xpos === "VERB" ||
+  (xpos == null &&
+    Object.values(pos).every((weight) => weight <= Number(pos.VERB)));
+
+const isLikelyAFiniteVerb = (token: PartiallyParsedToken) => {
+  const {
+    feats: { Mood, Tense, VerbForm },
+  } = token;
+  return (
+    isMostlyAVerb(token) &&
+    (Boolean(Mood) || VerbForm === "Fin" || Tense === "Past")
+  );
+};
+
+const laterVerbTakesTheSubject = (
+  { tokens, index }: RuleArgs,
+  subject: PartiallyParsedToken,
+) => {
+  const rest = tokens.slice(index + 1);
+  const clauseEnd = rest.findIndex(opensAnotherClause);
+  return (clauseEnd === -1 ? rest : rest.slice(0, clauseEnd)).some(
+    (token) =>
+      isLikelyAFiniteVerb(token) &&
+      (token.feats.Tense === "Past" ||
+        canBeSubjectOfWhenTagging(subject, token)),
+  );
+};
+
+const isMainVerbAfterUnmarkedRelative = (args: RuleArgs) => {
+  const {
+    token,
+    token: {
+      misc: { pos },
+      feats: { Tense, VerbForm },
+    },
+  } = args;
+  if (!pos.VERB || Tense !== "Pres" || VerbForm !== "Fin") {
+    return false;
+  }
+
+  const antecedent = unmarkedRelativeAntecedent(args);
+  return (
+    antecedent != null &&
+    canBeSubjectOfWhenTagging(antecedent, token) &&
+    !laterVerbTakesTheSubject(args, antecedent)
+  );
+};
+
+const hasAPastVerbReading = ({
+  misc: { pos = {} },
+  feats: { Tense },
+}: PartiallyParsedToken) => Boolean(pos.VERB) && Tense === "Past";
+
+const canBeAFiniteVerb = (token: PartiallyParsedToken) => {
+  const {
+    feats: { Mood, Tense, VerbForm },
+  } = token;
+  return (
+    hasAPastVerbReading(token) ||
+    (canStillBe(token, ["VERB"]) &&
+      (Boolean(Mood) || VerbForm === "Fin" || (Tense === "Past" && !VerbForm)))
+  );
+};
+
+const isMostlyANoun = ({ misc: { pos = {} } }: PartiallyParsedToken) =>
+  Number(pos.NOUN) > 0 &&
+  Object.values(pos).every((weight) => weight <= Number(pos.NOUN));
+
+const canHeadASubject = (before: PartiallyParsedToken[]) => {
+  const head = before[before.length - 1];
+  const isDetermined = before.slice(0, -1).some(isDeterminerWord);
+  return (
+    head.feats.PronType === "Tot" ||
+    (!isDeterminerWord(head) &&
+      (isMostlyANoun(head) || (isDetermined && Boolean(head.misc.pos?.NOUN))))
+  );
+};
+
+const opensWithOneNounPhrase = (before: PartiallyParsedToken[]) =>
+  before.every(({ xpos }) => ["NOUN", "ADJ", "ADV"].includes(String(xpos)));
+
+const hasASubjectBefore = (before: PartiallyParsedToken[]) =>
+  before.length > 0 &&
+  canHeadASubject(before) &&
+  opensWithOneNounPhrase(before);
+
+const agreesWithTheWordBefore = (
+  before: PartiallyParsedToken[],
+  token: PartiallyParsedToken,
+) => {
+  const previous = before[before.length - 1];
+  return (
+    !previous.misc.pos?.NOUN ||
+    previous.feats.Number == null ||
+    canBeSubjectOfWhenTagging(previous, token)
+  );
+};
+
+const isTheOnlyFiniteVerb = (args: RuleArgs) => {
+  const {
+    tokens,
+    index,
+    token,
+    token: {
+      misc: { pos },
+      feats: { Tense, VerbForm },
+    },
+  } = args;
+  if (!pos.NOUN || Tense !== "Pres" || VerbForm !== "Fin") {
+    return false;
+  }
+
+  const before = hypothesisBefore(args);
+  return (
+    Number(pos.VERB) > pos.NOUN &&
+    ![...before, ...tokens.slice(index + 1)].some(canBeAFiniteVerb) &&
+    hasASubjectBefore(before) &&
+    agreesWithTheWordBefore(before, token)
+  );
+};
+
 const nounRules: Rule[] = [
+  { id: "n-is-do-supported-verb", when: isTheVerbDoSupports, features: null },
+  { id: "n-is-only-finite-verb", when: isTheOnlyFiniteVerb, features: null },
+  {
+    id: "n-is-main-verb-after-relative",
+    when: isMainVerbAfterUnmarkedRelative,
+    features: null,
+  },
   { id: "n-is-worth-gerund", when: isWorthGerund, features: null },
   {
     id: "n-is-object-control-infinitive",
@@ -1758,7 +2106,7 @@ const isAfterRightADJ = (args: RuleArgs) => {
   return false;
 };
 
-const isNonVerbObject = ({
+const followsAVerbWithNoBareComplement = ({
   foreToken: {
     lemma: foreLemma,
     xpos: foreTag,
@@ -1778,6 +2126,10 @@ const isNonVerbObject = ({
     (foreMood && lemma === form.toLowerCase()) ||
     (Person === 1 && lemma !== form.toLowerCase())
   );
+
+const isNonVerbObject = (args: RuleArgs) =>
+  followsAVerbWithNoBareComplement(args) &&
+  !isMainVerbAfterUnmarkedRelative(args);
 
 const isMarkedRelative = (stack: number[], tokens: PartiallyParsedToken[]) => {
   let indexInStack = stack.length - 2;
@@ -1831,28 +2183,46 @@ const isUnmarkedRelative = (
   );
 };
 
-const hasNonVerbObject = ({
-  stack,
-  tokens,
-  token: {
-    feats: { Mood, Tense },
-  },
-  aftToken: {
-    form: aftWord = "",
-    lemma: aftLemma = "",
-    xpos: aftTag,
-    feats: { Tense: aftTense, VerbForm: aftVerbForm },
-  },
-}: RuleArgs) =>
-  aftTag === "VERB" &&
-  aftTense === "Pres" &&
-  aftVerbForm === "Fin" &&
-  !(
-    (Mood && aftLemma === aftWord.toLowerCase()) ||
-    Tense === "Past" ||
-    isMarkedRelative(stack, tokens) ||
-    isUnmarkedRelative(stack, tokens)
+const isVerbOfAFreeRelative = ({ taggedWindow, token, aftToken }: RuleArgs) => {
+  const subject = [...taggedWindow]
+    .reverse()
+    .find(({ xpos }) => xpos !== "ADV");
+  return (
+    subject?.xpos === "NOUN" &&
+    subject.feats.PronType === "Rel" &&
+    token.feats.Person === 3 &&
+    aftToken.feats.Person === 3
   );
+};
+
+const isInsideARelativeClause = (args: RuleArgs) =>
+  isMarkedRelative(args.stack, args.tokens) ||
+  isUnmarkedRelative(args.stack, args.tokens) ||
+  isVerbOfAFreeRelative(args);
+
+const hasNonVerbObject = (args: RuleArgs) => {
+  const {
+    token: {
+      feats: { Mood, Tense },
+    },
+    aftToken: {
+      form: aftWord = "",
+      lemma: aftLemma = "",
+      xpos: aftTag,
+      feats: { Tense: aftTense, VerbForm: aftVerbForm },
+    },
+  } = args;
+  return (
+    aftTag === "VERB" &&
+    aftTense === "Pres" &&
+    aftVerbForm === "Fin" &&
+    !(
+      (Mood && aftLemma === aftWord.toLowerCase()) ||
+      Tense === "Past" ||
+      isInsideARelativeClause(args)
+    )
+  );
+};
 
 const isAfterIncompatibleMarker = ({
   token: {
@@ -2465,6 +2835,8 @@ const isPastTenseSubject = ({
 };
 
 const verbRules: Rule[] = [
+  { id: "v-is-do-supported", when: isTheVerbDoSupports, features: {} },
+  { id: "v-is-only-finite-verb", when: isTheOnlyFiniteVerb, features: {} },
   { id: "v-is-pos-mark", when: isPossessiveMarker, features: null },
   {
     id: "v-is-invalid-after-mark-1",
@@ -3116,6 +3488,11 @@ const isNounNotMarker = ({
 
 const markerRules: Rule[] = [
   { id: "mark-is-amount", when: isAmount, features: null },
+  {
+    id: "mark-is-modal-complement",
+    when: isModalVerbComplement,
+    features: null,
+  },
   { id: "mark-is-be-verb", when: isBeVerbContraction, features: null },
   { id: "mark-is-verb", when: isVerbNotMarker, features: null },
   { id: "mark-is-noun", when: isNounNotMarker, features: null },

@@ -16,6 +16,132 @@ Nor does routine history: git already records what changed and when.
 
 ## Log
 
+### 2026-10-03 — two finite verbs side by side, and a dictionary that turned "matter" into "more matte"
+
+enlint needed "beats" and "matters" tagged as verbs in sentences like "the
+year you start matters so much" and 'the year "the $200" begins beats its
+size'. Both came out NOUN under the rules alone and under the model. The
+grammar is in `docs/grammar.md` ("The main verb after an unmarked relative
+clause", "One finite verb to a sentence", "Invariant verbs agree with any
+subject"). This entry holds the measurements and what was rejected.
+
+Measured on a list of 65 sentences built around the two words, each run with
+the model and with the rules alone (130 results), and on the gold set:
+
+| change | list wrong | gold, model | gold, rules | audit right |
+| --- | --- | --- | --- | --- |
+| before | 49 | 5780/6132 | 5753/6132 | 1708 |
+| main verb after an unmarked relative | 37 | 5780 | 5753 | 1708 |
+| quoted subjects, past relative verbs | 33 | 5780 | 5753 | 1708 |
+| invariant verbs agree with any subject | 29 | 5780 | 5753 | 1708 |
+| free relative ("what matters is") | 27 | 5780 | 5753 | 1708 |
+| dictionary: false comparatives, "save" | 15 | 5780 | 5753 | 1707 |
+| `mark-is-modal-complement` | 14 | 5780 | 5753 | 1707 |
+| one finite verb to a sentence | 11 | 5781 | 5753 | 1708 |
+
+The table stops before the review. The fixes that followed it left every
+figure where the last row has it.
+
+`npm test` went from 507 to 644, all passing. The gold set is reviews and
+tweets and holds almost none of these constructions, so it can show that
+nothing broke and little else. The 65-sentence list is the evidence that
+something improved, and it was written by the person making the change.
+
+Rejected, with the cost:
+
+- The free-relative exception first fired for any relative word in front.
+  It turned "which *bud* is R and L" and "wat *#twitter* does" into verbs,
+  three gold tokens. Requiring third-person agreement on both words removed
+  all three losses.
+- "One finite verb" first accepted any earlier noun or gerund as the subject.
+  It cost five gold tokens in fragments ("tablet, but *books*?", "In front of
+  the @user *store*.") and won one. Requiring the sentence to open with a
+  single noun phrase kept the win and dropped every loss.
+- A lemma chosen by tag weight ("the form is its own lemma when another tag
+  outweighs the adjective") gave "longer" the lemma "longer" and "least" the
+  lemma "least". The weights in `pos.json` come from this tagger and say
+  "longer" is a noun seven times in ten. They are no evidence about lemmas.
+
+The dictionary change: `inflections.json` lists a comparative for every
+adjective, so "matte" claimed "matter", "numb" claimed "number", "custom"
+claimed "customer", "off" claimed "offer" and "own" claimed "owner". Each of
+those words then carried an ADJ reading and the adjective's lemma, because
+`keepsTheCurrentLemma` lets the first lemma stand. `isAWordOfItsOwn` in
+`scripts/build-dictionary.ts` now refuses the comparative reading when the
+form heads a noun or verb paradigm of its own and either the adjective lists
+no superlative or the form is more frequent than the adjective. A real
+comparative comes with a superlative and is rarer than its positive. 107
+entries changed. "longer", "lower", "closer" and "better" keep their
+adjective lemma. "upper" keeps an ADJ reading under its own lemma, because
+the word list knows it as an adjective without help from "up". Irregular
+grades ("more", "best", "less") are exempt by spelling.
+
+The independent reviewer ran 190 sentences through the change and found four
+defects the gold set cannot see. Each is fixed and has a test:
+
+- The relative rule read any "noun, subject, verb, word" run as a relative
+  clause. "Last year the company made changes" and "Every day you face
+  challenges" made a verb of the object. A fronted time phrase and a noun
+  under a plain preposition no longer count as antecedents.
+- The later-verb test counted only words that can be nothing but a verb, so
+  "The day you place orders matters" made "orders" the verb. It now counts any
+  word that is a verb more often than not.
+- "One finite verb" turned headings into clauses ("Performance issues", "Test
+  results"). The word must now be a verb more often than a noun.
+- The parser read "it will" in "If you find a book it will help" as a relative
+  clause on "book", because a bare infinitive is `VerbForm=Fin`. A modal is no
+  longer taken for a relative verb. This moved heads in gold sentences that no
+  tag metric shows; there is still no script that scores heads.
+
+"save" was built as `{VERB: 0.01, MARK: 0.99}`, because `pos.json` was gathered
+while the word could only be a marker. A handpicked entry marked
+`keepsItsWeights` now keeps them: `addPos` skips it. "save" is
+`{VERB: 0.95, MARK: 0.05}`, which loses the preposition in "Save for a few
+errors, the report is fine". "matter" is `{NOUN: 0.6, VERB: 0.4}`. The marker
+lists in `scripts/handpicked-words.ts` rebuild each entry and drop any field
+they do not name, so both entries live in `commonWords`.
+
+A second review, against the committed parser on about 3,000 sentences, found
+the relative rule still firing on objects ("If you press the button it makes
+sounds"), the noun "matter" tagged VERB far more often under the model, and
+"Best wishes" read as a clause. The antecedent must now open its clause, the
+subject head must be mostly a noun or sit under a determiner, "matter" is
+hand-weighted, and a do-support rule keeps "doesn't matter" and "Why does
+this matter?" verbs. Gold and audit figures are unchanged: 5781, 5753, 1708.
+
+Still wrong after this work, and why each was left:
+
+- "Both matter.", model only: NOUN since "matter" became noun-first.
+- "volatile matter content", "for that matter", "Grey matter": VERB, as
+  before this work.
+- "Budget cuts", "Quick wins", "Price changes": VERB under the model, as
+  before this work or by its choice.
+- "A tax cut helps everyone", rules alone: "cut" VERB. See the invariant-verb
+  note in `docs/grammar.md`.
+- "I know which costs matter": "matter" NOUN. "costs" comes out VERB through
+  `invalid-n-after-pro`, an older fault. Before the dictionary change the
+  rules reached VERB for "matter" by accident.
+- "The day you place orders matters", model only: "matters" NOUN. Both
+  readings are legal and the model picks.
+
+- "Being consistent matters more" and "Starting early beats saving more":
+  right under the rules alone, NOUN under the model. See the gerund note in
+  `docs/grammar.md`.
+- "120 beats per minute", "The drum beats grew louder": VERB. A numeral or a
+  noun in front and a marker or a past verb behind.
+- "subject matter from three fields": VERB, vetoed as a noun by
+  `n-is-infinitive`.
+- "Only the total matters": "matters" is right and "total" is ADJ.
+- The quoted subject gets the right tags and the wrong heads.
+
+`data/dictionary.json` in git did not match its own build before this change:
+fourteen "-ise/-ize" verbs in `scripts/handpicked-words.ts` had no verb
+features, and four pairs were missing from the built file. They now carry
+`VerbForm=Fin`, `Tense=Pres`, `Person=1`, so a rebuild no longer strips
+"optimize" of its tense.
+
+`weights.json` was trained before the dictionary change and was not retrained.
+
 ### 2026-09-27 — `prepare` builds `dist` for git installs
 
 `dist` stays out of git. npm builds a git dependency only by running its

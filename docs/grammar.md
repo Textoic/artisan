@@ -49,6 +49,8 @@ PUNCT candidates inside a chain are always vetoed (`punct-never-in-a-chain`); a 
 
 | # | id | verdict | question |
 |---|----|---------|----------|
+| – | `n-is-only-finite-verb` | veto | the sentence opens with one noun phrase and no other word can be a finite verb — this word is the clause's verb ("Only the total *matters*.") |
+| – | `n-is-main-verb-after-relative` | veto | the word follows the verb of an unmarked relative clause and agrees with that clause's antecedent — it is the main verb ("the year you start *matters*") |
 | 1 | `n-is-verb-conj` | veto | a coordinator on the stack heads a verb, the word before it is no noun, and no verb follows — this word is the second verb conjunct |
 | 2 | `n-is-last-possible-v-after-mark` | veto | right after a clause-only (degree-2) marker with no other verb candidate before the boundary — it must be that clause's verb |
 | 3 | `n-is-adv` | veto | now/yesterday/tomorrow directly before a noun modifies it |
@@ -83,6 +85,7 @@ PUNCT candidates inside a chain are always vetoed (`punct-never-in-a-chain`); a 
 
 | # | id | verdict | question |
 |---|----|---------|----------|
+| – | `v-is-only-finite-verb` | allow | same predicate as `n-is-only-finite-verb`; it runs first so the vetoes below cannot leave the sentence verbless |
 | 1 | `v-is-pos-mark` | veto | 's after a substantive noun when *either* side rejects a be-verb (an incompatible verb on the left, or a clause on the right that refuses one) — possessive |
 | 2 | `v-is-invalid-after-mark-1` | veto | an object-less preposition earlier needs this word as its noun |
 | 3 | `v-is-noun` | veto | gerund with no verbal support; disagrees with the stack subject; plural closing a PP or opening a clause; singular under a determiner |
@@ -92,7 +95,7 @@ PUNCT candidates inside a chain are always vetoed (`punct-never-in-a-chain`); a 
 | 7 | `v-is-past-adj` | veto | ADJ-capable past form after a pure preposition / as a verb's adjective object / between a cardinal and a unit — not after be/have, and not an unmarked relative root |
 | 8 | `v-after-right-adj` | veto | this word is the noun a determiner-led adjective chain is waiting for |
 | 9 | `v-has-non-verb-object` | veto | the next word is already a present finite verb this one could not be auxiliary to — so this one is nominal |
-| 10 | `v-non-verb-object` | veto | present finite directly after a verb that does not license a bare complement |
+| 10 | `v-non-verb-object` | veto | present finite directly after a verb that does not license a bare complement — unless that verb closes an unmarked relative clause (same predicate as `n-is-main-verb-after-relative`) |
 | 11 | `v-is-comp-adj` | veto | same predicate as `n-is-comp-adj`: the word before "than" (or "then") is the comparison's adjective |
 | 12 | `v-is-past-subj` | veto | noun-capable word before a finite past verb, with no other noun in the run to be its subject |
 | 13 | `v-object` | allow, head L | a compatible complement: after "be", or a perfect/passive participle or bare infinitive of the verb behind (adverbs skipped) |
@@ -134,6 +137,7 @@ PUNCT candidates inside a chain are always vetoed (`punct-never-in-a-chain`); a 
 | # | id | verdict | question |
 |---|----|---------|----------|
 | 1 | `mark-is-amount` | veto | a numeral before a unit is a number, not a marker |
+| – | `mark-is-modal-complement` | veto | same predicate as `n-is-modal-complement`: a base form directly after a modal is its verb ("you can *save* $200") |
 | 2 | `mark-is-be-verb` | veto | 's that must be "is": he/she/it before, or the clause after needs a verb |
 | 3 | `mark-is-verb` | veto | "like" before a marker or after an adverb; any verb-capable word after do-support |
 | 4 | `mark-is-noun` | veto | NOUN-capable after a determined noun, before a participle — it is the noun |
@@ -263,6 +267,36 @@ Postposed "enough" modifies a preceding plain adjective and is ADV:
 insufficient evidence: in "nearly enough food", "nearly" modifies the quantity
 determiner "enough". Adverb contexts and standalone nominal uses remain for
 the existing rules and model to decide.
+
+### The main verb after an unmarked relative clause
+
+"The year you start *matters*." "The year the $200 begins *beats* its size." Two finite verbs stand side by side, and the second is the main verb. Its subject is the noun the relative clause hangs from. `isMainVerbAfterUnmarkedRelative` (tagger) asks four things, in order:
+
+- the word before is a finite verb with no `Mood`;
+- that verb's subject sits directly in front of it, and is a subject pronoun ("you") or a phrase a determiner opens ("the $200"); quotation marks are skipped;
+- the word before that subject is a substantive noun, the antecedent;
+- the antecedent is free to be a subject. Its phrase opens the sentence or follows a word that opens a clause ("that", "why", "because", "if", "and", "but" and a dozen like them). An object does not qualify ("If you press the button it makes *sounds*", "I told the boy he needs *books*"), nor does the object of a preposition ("In the office the manager sends *reports*", "Before dinner she takes *walks*"). A time noun qualifies only directly after an article: "the year you start" does, and "last year", "every morning", "the next day" and "today" are phrases set in front of the clause;
+- this word agrees with the antecedent, and no later word in the same clause is mostly a verb, finite or past, and able to take that subject.
+
+The last test is what keeps "The day you start *classes* is hard", "The day you place *orders* matters" and "The day you start *classes* seemed long" nouns: a later verb takes the subject. The search stops at a punctuation mark or a conjunction ("than", "if", "because", "so"), so "matters more than the amount you put in" does not look as far as "put". It walks past a plain preposition, so "the things you need *help* with are listed" finds "are".  A bare plural subject ("the things people say matter") is not covered: without a determiner or a pronoun the pair reads the same as a compound noun.
+
+When the rule fires it vetoes NOUN and exempts the word from `v-non-verb-object`, so the answer does not depend on the model. On the parser side `isPronounRelativeBeforeTheMainVerb` hangs the relative verb on the antecedent when its subject is a pronoun, the verb is no modal, and the next word is already a finite verb. A modal is excluded because a bare infinitive carries `VerbForm=Fin`: "If you find a book it will help" otherwise read "it will" as a relative clause on "book". A determiner-led subject already took that path. A quoted subject does not: 'The year "the $200" begins beats' gets the right tags and the wrong heads.
+
+A free relative is the same adjacency with the pronoun as subject: "What *matters* is the year." `v-has-non-verb-object` now stands down when a relative pronoun is in front and both this word and the next are third-person singular. A plural noun could not be the subject of the second verb, so the first is a verb. "which *bud* is right" stays a noun, because "bud" is not a third-person form.
+
+### One finite verb to a sentence
+
+When a sentence opens with one noun phrase and exactly one word in it can be a finite verb, that word is the verb: "Only the total *matters*.", "Both *matter*.", "Details *matter*." `isTheOnlyFiniteVerb` requires every word before to be a noun, an adjective or an adverb, the word directly before to be able to head a subject (a noun reading and no determiner use, or "both"/"all"), and no other word to carry a finite or modal reading. The subject head must be a noun more often than anything else, or sit under a determiner ("the *total*"); "Best *wishes*" and "Quick *wins*" fail that test. The word itself must be a verb more often than a noun by its dictionary weights. Without that, every two-word heading became a clause: "Performance *issues*", "Test *results*", "Customer *reviews*". "matters" (0.75 verb) and "beats" (0.85) pass; "issues" (0.22) and "results" (0.19) do not. A word with a past verb reading counts as a finite verb whatever the current hypothesis calls it: in "The 2008 crash left an indelible mark" the model reads "left" as an adverb, and without this test "mark" became the verb. A gerund subject ("Being consistent matters more") is left to the model; allowing one made verbs out of the nouns in tweet fragments ("Like making *calls*", "the 4.0 numbering *leap*"), five gold tokens for one.
+
+### The verb that do-support needs
+
+"Why does this *matter*?" "It doesn't *matter*." "Does saving $20 now *matter* if you can save $200 later?" `isTheVerbDoSupports` reads a bare infinitive as the verb when a form of "do" supports it, no verb stands between the two, and no other bare infinitive follows before the clause ends. "Do" counts as support only where it cannot be a main verb with an object: directly before a negator, at the start of the sentence, or after a question word. Counting every "do" cost five gold tokens ("does a WONDERFUL *job*", "did a factory *reset*", "do *email*"). `n-is-do-supported-verb` vetoes NOUN and `v-is-do-supported` allows VERB ahead of the vetoes.
+
+The rule exists because "matter" is hand-weighted as a noun first (`NOUN 0.6`, `VERB 0.4`). The corpus weights said `VERB 0.75`, and with them the trained model tagged the noun as a verb in 13 of 65 corpus sentences ("dark *matter*", "volatile *matter* content"), against 3 before the false comparative was removed.
+
+### Invariant verbs agree with any subject
+
+"beat", "put", "cut", "hit", "set", "let", "read" and twenty others spell the past like the base form, so the dictionary gives them `Tense=Pres`, `VerbForm=Fin` and no `Person`. `canBeSubjectOfWhenTagging` read the missing `Person` as "agrees with nothing", and "The Lakers *beat* the Celtics" lost its verb to `v-after-right-adj`. The parser's `cannotBeSubjectWhenParsing` already read it as "cannot be ruled out". The tagger now does the same. The cost, under the rules alone: "A tax *cut* helps everyone" tags "cut" VERB and "helps" NOUN, because `v-is-noun` can no longer reject "cut" for disagreeing with "tax". The model still picks NOUN there.
 
 ### Negation
 

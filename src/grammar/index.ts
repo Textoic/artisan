@@ -101,6 +101,17 @@ export const canStillBe = (
 
 export const isNegator = ({ lemma }: { lemma?: string }) => lemma === "not";
 
+export const isSubjectPronoun = ({
+  xpos,
+  feats: { PronType, Poss, Case },
+}: PartiallyParsedToken) =>
+  xpos === "NOUN" && PronType === "Prs" && !Poss && Case !== "Acc";
+
+export const isSubstantiveNoun = ({
+  xpos,
+  feats: { PronType },
+}: PartiallyParsedToken) => xpos === "NOUN" && PronType == null;
+
 const auxiliaryLemmas = ["be", "do", "have"];
 
 const isAuxiliaryOrModal = (token: PartiallyParsedToken) => {

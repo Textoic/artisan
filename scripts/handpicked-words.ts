@@ -4,6 +4,7 @@ type HandpickedEntry = {
   form: string;
   synonyms?: string[];
   plurals?: string[];
+  keepsItsWeights?: boolean;
   fields?: LexicalProps;
 };
 
@@ -3180,9 +3181,6 @@ const markersDegree1 = [
     form: "sans",
   },
   {
-    form: "save",
-  },
-  {
     form: "sauf",
   },
   {
@@ -4713,6 +4711,9 @@ const izeVerbs = [
     fields: {
       lemma: "operationalize",
       Number: "Sing",
+      Person: 1,
+      Tense: "Pres",
+      VerbForm: "Fin",
       pos: { VERB: 1 },
     },
   },
@@ -4721,6 +4722,9 @@ const izeVerbs = [
     fields: {
       lemma: "operationalise",
       Number: "Sing",
+      Person: 1,
+      Tense: "Pres",
+      VerbForm: "Fin",
       pos: { VERB: 1 },
     },
   },
@@ -4729,6 +4733,9 @@ const izeVerbs = [
     fields: {
       lemma: "galvanise",
       Number: "Sing",
+      Person: 1,
+      Tense: "Pres",
+      VerbForm: "Fin",
       pos: { VERB: 1 },
     },
   },
@@ -4737,6 +4744,9 @@ const izeVerbs = [
     fields: {
       lemma: "galvanize",
       Number: "Sing",
+      Person: 1,
+      Tense: "Pres",
+      VerbForm: "Fin",
       pos: { VERB: 1 },
     },
   },
@@ -4745,6 +4755,9 @@ const izeVerbs = [
     fields: {
       lemma: "internalise",
       Number: "Sing",
+      Person: 1,
+      Tense: "Pres",
+      VerbForm: "Fin",
       pos: { VERB: 1 },
     },
   },
@@ -4753,6 +4766,9 @@ const izeVerbs = [
     fields: {
       lemma: "internalize",
       Number: "Sing",
+      Person: 1,
+      Tense: "Pres",
+      VerbForm: "Fin",
       pos: { VERB: 1 },
     },
   },
@@ -4761,6 +4777,9 @@ const izeVerbs = [
     fields: {
       lemma: "optimise",
       Number: "Sing",
+      Person: 1,
+      Tense: "Pres",
+      VerbForm: "Fin",
       pos: { VERB: 1 },
     },
   },
@@ -4769,6 +4788,9 @@ const izeVerbs = [
     fields: {
       lemma: "optimize",
       Number: "Sing",
+      Person: 1,
+      Tense: "Pres",
+      VerbForm: "Fin",
       pos: { VERB: 1 },
     },
   },
@@ -4777,6 +4799,9 @@ const izeVerbs = [
     fields: {
       lemma: "revolutionise",
       Number: "Sing",
+      Person: 1,
+      Tense: "Pres",
+      VerbForm: "Fin",
       pos: { VERB: 1 },
     },
   },
@@ -4785,6 +4810,9 @@ const izeVerbs = [
     fields: {
       lemma: "revolutionize",
       Number: "Sing",
+      Person: 1,
+      Tense: "Pres",
+      VerbForm: "Fin",
       pos: { VERB: 1 },
     },
   },
@@ -4793,6 +4821,9 @@ const izeVerbs = [
     fields: {
       lemma: "strategise",
       Number: "Sing",
+      Person: 1,
+      Tense: "Pres",
+      VerbForm: "Fin",
       pos: { VERB: 1 },
     },
   },
@@ -4801,6 +4832,9 @@ const izeVerbs = [
     fields: {
       lemma: "strategize",
       Number: "Sing",
+      Person: 1,
+      Tense: "Pres",
+      VerbForm: "Fin",
       pos: { VERB: 1 },
     },
   },
@@ -4809,6 +4843,9 @@ const izeVerbs = [
     fields: {
       lemma: "synergise",
       Number: "Sing",
+      Person: 1,
+      Tense: "Pres",
+      VerbForm: "Fin",
       pos: { VERB: 1 },
     },
   },
@@ -4817,6 +4854,9 @@ const izeVerbs = [
     fields: {
       lemma: "synergize",
       Number: "Sing",
+      Person: 1,
+      Tense: "Pres",
+      VerbForm: "Fin",
       pos: { VERB: 1 },
     },
   },
@@ -4825,6 +4865,9 @@ const izeVerbs = [
     fields: {
       lemma: "verbalise",
       Number: "Sing",
+      Person: 1,
+      Tense: "Pres",
+      VerbForm: "Fin",
       pos: { VERB: 1 },
     },
   },
@@ -4833,6 +4876,9 @@ const izeVerbs = [
     fields: {
       lemma: "verbalize",
       Number: "Sing",
+      Person: 1,
+      Tense: "Pres",
+      VerbForm: "Fin",
       pos: { VERB: 1 },
     },
   },
@@ -4841,6 +4887,29 @@ const izeVerbs = [
 const commonWords = [
   ...nouns,
   ...izeVerbs,
+  {
+    form: "matter",
+    keepsItsWeights: true,
+    fields: {
+      pos: { NOUN: 0.6, VERB: 0.4 },
+      VerbForm: "Fin",
+      Tense: "Pres",
+      Number: "Sing",
+      Person: 1,
+    },
+  },
+  {
+    form: "save",
+    keepsItsWeights: true,
+    fields: {
+      pos: { VERB: 0.95, MARK: 0.05 },
+      AdpType: "Prep",
+      VerbForm: "Fin",
+      Tense: "Pres",
+      Number: "Sing",
+      Person: 1,
+    },
+  },
   {
     form: "confident",
     fields: { lemma: "confident", pos: { ADJ: 1 } },

@@ -328,6 +328,29 @@ const settleAdjectiveOrAdverb = (form: string, lookup: Dictionary) => {
   dropTheWeakerModifierReading(form, pos);
 };
 
+const frequencyOf = (form: string) =>
+  Object.prototype.hasOwnProperty.call(frequencies, form)
+    ? frequencies[form]
+    : 0;
+
+const headsItsOwnParadigm = (form: string) =>
+  Object.prototype.hasOwnProperty.call(inflections, form) &&
+  Boolean(inflections[form].NOUN ?? inflections[form].VERB);
+
+const isRegularGradeOf = (base: string, graded: string) =>
+  graded.startsWith(base.slice(0, -1));
+
+const hasNoSuperlative = (base: string) => inflections[base].ADJ?.length === 1;
+
+const isAWordOfItsOwn = (base: string, xpos: PosTag, graded: string) =>
+  xpos === "ADJ" &&
+  headsItsOwnParadigm(graded) &&
+  isRegularGradeOf(base, graded) &&
+  (hasNoSuperlative(base) || frequencyOf(graded) > frequencyOf(base));
+
+const ownAdjectiveFeatures = (form: string) =>
+  synonyms[form]?.ADJ ? { pos: { ADJ: 1 }, lemma: form } : { lemma: form };
+
 const addFormsForTag = (
   dictionary: Dictionary,
   form: string,
@@ -342,14 +365,16 @@ const addFormsForTag = (
         add(
           dictionary,
           entry,
-          createFeatures({
-            xpos,
-            index,
-            total: forms.length,
-            lemma: form,
-            form: entry,
-            alsoAdverb,
-          }) as LexicalProps,
+          (isAWordOfItsOwn(form, xpos, entry)
+            ? ownAdjectiveFeatures(entry)
+            : createFeatures({
+                xpos,
+                index,
+                total: forms.length,
+                lemma: form,
+                form: entry,
+                alsoAdverb,
+              })) as LexicalProps,
         ),
       );
   });
@@ -550,9 +575,18 @@ const corpusPosFor = (form: string, { pos: tags, NumType }: LexicalProps) => {
   return tags ? redistributedPos(form, tags) : pos[form];
 };
 
+const handWeightedForms = new Set(
+  handpickedWords
+    .filter(({ keepsItsWeights }) => keepsItsWeights)
+    .map(({ form }) => form),
+);
+
 const addPos = (dictionary: Dictionary) => {
   for (const form in pos) {
-    if (Object.prototype.hasOwnProperty.call(pos, form)) {
+    if (
+      Object.prototype.hasOwnProperty.call(pos, form) &&
+      !handWeightedForms.has(form)
+    ) {
       const fields = dictionary.get(form);
       const newPos = fields == null ? null : corpusPosFor(form, fields);
       if (newPos != null) {

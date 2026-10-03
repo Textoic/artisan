@@ -19,6 +19,8 @@ import {
   isFollowedByClause,
   isGerund,
   isNegator,
+  isSubjectPronoun,
+  isSubstantiveNoun,
   isTerminator,
   isTimeModifier,
   negatesVerbGroup,
@@ -1482,10 +1484,35 @@ const isRelativeGerund = ({ tokens, stack }: OracleArgs) => {
   );
 };
 
-const isUnmarkedRelativeVerb = (
-  { heads, tokens, stack }: OracleArgs,
+const isFollowedByAFiniteVerb = (
+  tokens: PartiallyParsedToken[],
+  index: number,
+) => {
+  const next = tokens[index + 1] as PartiallyParsedToken | undefined;
+  return (
+    next?.xpos === "VERB" &&
+    (Boolean(next.feats.Mood) || next.feats.VerbForm === "Fin")
+  );
+};
+
+const isPronounRelativeBeforeTheMainVerb = (
+  { tokens, stack }: OracleArgs,
   subject?: number,
 ) => {
+  const currentIndex = stack[stack.length - 1];
+  const lastIndex = stack[stack.length - 2];
+  return (
+    subject === lastIndex + 1 &&
+    subject === currentIndex - 1 &&
+    isSubjectPronoun(tokens[subject]) &&
+    isSubstantiveNoun(tokens[lastIndex]) &&
+    !tokens[currentIndex].feats.Mood &&
+    isFollowedByAFiniteVerb(tokens, currentIndex)
+  );
+};
+
+const isUnmarkedRelativeVerb = (args: OracleArgs, subject?: number) => {
+  const { heads, tokens, stack } = args;
   const currentIndex = stack[stack.length - 1];
   const lastIndex = stack[stack.length - 2];
   const hasRelativeSubjectChild = hasChildWithMatcher(
@@ -1506,7 +1533,8 @@ const isUnmarkedRelativeVerb = (
   return (
     (hasRelativeSubjectChild ||
       isUnmarkedRelativeRoot(heads, tokens, stack, currentIndex) ||
-      subjectHasADeterminer) &&
+      subjectHasADeterminer ||
+      isPronounRelativeBeforeTheMainVerb(args, subject)) &&
     !tokens.slice(lastIndex, currentIndex - 1).some(isTerminator)
   );
 };
