@@ -15,6 +15,32 @@ type Expected = { text: string; tags: Record<string, string> };
 
 const tagged: Expected[] = [
   { text: "But how can 10 years beat 30?", tags: { beat: "VERB" } },
+  {
+    text: "These are rules another person can check.",
+    tags: { can: "VERB", check: "VERB" },
+  },
+  {
+    text: "You work inside rules that another person can check.",
+    tags: { check: "VERB" },
+  },
+  {
+    text: "The writer can name the grain of a table.",
+    tags: { name: "VERB", grain: "NOUN" },
+  },
+  {
+    text: "A reader who was bored starts to think.",
+    tags: { bored: "VERB", starts: "VERB" },
+  },
+  {
+    text: "The letters that were not signed sit in a drawer.",
+    tags: { signed: "VERB", sit: "VERB" },
+  },
+  {
+    text: "A clerk who was hired orders supplies.",
+    tags: { orders: "VERB", supplies: "NOUN" },
+  },
+  { text: "The girl who paints houses lives here.", tags: { houses: "NOUN" } },
+  { text: "## What are words?", tags: { words: "NOUN" } },
   { text: "That is why the year beats the amount.", tags: { beats: "VERB" } },
   {
     text: "Now here is the part that actually matters.",

@@ -16,6 +16,52 @@ Nor does routine history: git already records what changed and when.
 
 ## Log
 
+### 2026-10-07 — a modal's verb was forced to a noun, and a passive relative clause hid the main verb
+
+enlint needed two sentences from the lab to parse before it could count
+clauses and find relative clauses with no marker: "You get art by working
+inside rules another person can check" tagged "check" NOUN, and "a reader who
+was bored starts to think" tagged "starts" NOUN. The grammar is in
+`docs/grammar.md` ("The verb after a modal", "The main verb after a passive
+relative clause").
+
+| | gold, model | gold, rules | audit right | `npm test` |
+| --- | --- | --- | --- | --- |
+| before | 5780/6132 | 5754/6132 | 1708 | 652 |
+| after | 5780/6132 | 5754/6132 | 1708 | 668 |
+
+The gold set holds neither shape, so it cannot move. A snapshot of
+`form/xpos/head` over 947 sentences (the author's 13 essays and the 20 essays
+of the lab run `2026-10-06T17-22-38-human-grok-7`) changed in three, all
+three corrections: "so the writer can *feel* smarter", "so the narrator can
+*name* the grain of a table", and the "starts" sentence.
+
+Tried and narrowed: the relative rule first accepted any verb group after
+"who", "that" or "which". It turned "houses" into the main verb of "The girl
+who paints houses lives here" and the "words" of "## What are words?" into a
+verb. Only the passive is kept, because only there the next word cannot be
+an object. The narrowing gave up one correction: "The ones who stay *go* and
+write the next book" tags "go" ADJ again.
+
+Still wrong, found while doing this and left alone:
+
+- "The man who sells reports left early": "left" is ADV and the sentence has
+  no main verb.
+- "so the next writer keeps the sofa" in the middle of a long sentence tags
+  "keeps" NOUN under the trained model and VERB under the rules alone.
+- "It was so good that we stayed": "good" is NOUN. "He read that book twice"
+  tags "book" VERB under the rules alone.
+- "A review calls a page painterly and a reader ...": "painterly" hangs on
+  "reader" and "and" on "painterly".
+- A main clause after a fronted phrase with no comma hangs on the last noun
+  of the phrase: "In poetry we have ...", "Thanks to the ironies of life I
+  found the answer". enlint's `no-unmarked-relatives` has to rule these out
+  by the shape of the clause.
+- enlint's `scripts/nlp.ts` and the lab's `src/nlp.ts` pass the whole of
+  `weights.json`, wrapper included, as the weights. No feature is found in
+  it, so both tag with the rules alone. enlint's `test/trained-nlp.ts`
+  unwraps it.
+
 ### 2026-10-06 — "art" was a form of "be", and a clause in parentheses took the root
 
 enlint needed five sentences from model-written essays to parse before it

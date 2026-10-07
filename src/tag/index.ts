@@ -1754,25 +1754,60 @@ const laterVerbTakesTheSubject = (
   );
 };
 
-const isMainVerbAfterUnmarkedRelative = (args: RuleArgs) => {
-  const {
-    token,
-    token: {
-      misc: { pos },
-      feats: { Tense, VerbForm },
-    },
-  } = args;
-  if (!pos.VERB || Tense !== "Pres" || VerbForm !== "Fin") {
-    return false;
-  }
+const pronounsAfterAnAntecedent = new Set(["who", "that", "which"]);
 
-  const antecedent = unmarkedRelativeAntecedent(args);
-  return (
-    antecedent != null &&
-    canBeSubjectOfWhenTagging(antecedent, token) &&
-    !laterVerbTakesTheSubject(args, antecedent)
-  );
+const followsAnAntecedent = ({
+  form,
+  feats: { PronType },
+}: PartiallyParsedToken) =>
+  PronType === "Rel" && pronounsAfterAnAntecedent.has(form.toLowerCase());
+
+const isAVerbTagged = (token: PartiallyParsedToken | undefined) =>
+  token?.xpos === "VERB";
+
+const passiveRelativeOpening = (before: PartiallyParsedToken[]) => {
+  const participle = before.length - 1;
+  const helper =
+    before[participle - 1]?.xpos === "ADV" ? participle - 2 : participle - 1;
+  const isPassive =
+    isAVerbTagged(before[participle]) &&
+    before[participle].feats.Tense === "Past" &&
+    isAVerbTagged(before[helper]) &&
+    before[helper].lemma === "be";
+  return isPassive && helper > 0 && followsAnAntecedent(before[helper - 1])
+    ? helper - 1
+    : -1;
 };
+
+const passiveRelativeAntecedent = (args: RuleArgs) => {
+  const before = hypothesisBefore(args);
+  const head = passiveRelativeOpening(before) - 1;
+  return head >= 0 && canAnchorARelativeClause(before, head)
+    ? before[head]
+    : undefined;
+};
+
+const takesTheAntecedentAsSubject = (
+  args: RuleArgs,
+  antecedent: PartiallyParsedToken | undefined,
+) =>
+  antecedent != null &&
+  canBeSubjectOfWhenTagging(antecedent, args.token) &&
+  !laterVerbTakesTheSubject(args, antecedent);
+
+const isPresentFiniteVerbForm = ({
+  misc: { pos },
+  feats: { Tense, VerbForm },
+}: PartiallyParsedToken) =>
+  Boolean(pos.VERB) && Tense === "Pres" && VerbForm === "Fin";
+
+const isMainVerbAfterUnmarkedRelative = (args: RuleArgs) =>
+  isPresentFiniteVerbForm(args.token) &&
+  takesTheAntecedentAsSubject(args, unmarkedRelativeAntecedent(args));
+
+const isMainVerbAfterPassiveRelative = (args: RuleArgs) =>
+  isPresentFiniteVerbForm(args.token) &&
+  takesTheAntecedentAsSubject(args, passiveRelativeAntecedent(args));
 
 const hasAPastVerbReading = ({
   misc: { pos = {} },
@@ -1853,6 +1888,11 @@ const nounRules: Rule[] = [
   {
     id: "n-is-main-verb-after-relative",
     when: isMainVerbAfterUnmarkedRelative,
+    features: null,
+  },
+  {
+    id: "n-is-main-verb-after-passive-relative",
+    when: isMainVerbAfterPassiveRelative,
     features: null,
   },
   { id: "n-is-worth-gerund", when: isWorthGerund, features: null },
@@ -2146,7 +2186,8 @@ const followsAVerbWithNoBareComplement = ({
 
 const isNonVerbObject = (args: RuleArgs) =>
   followsAVerbWithNoBareComplement(args) &&
-  !isMainVerbAfterUnmarkedRelative(args);
+  !isMainVerbAfterUnmarkedRelative(args) &&
+  !isMainVerbAfterPassiveRelative(args);
 
 const isMarkedRelative = (stack: number[], tokens: PartiallyParsedToken[]) => {
   let indexInStack = stack.length - 2;
@@ -2466,7 +2507,8 @@ const verbIsNoun = (args: RuleArgs) => {
   if (
     !pos.NOUN ||
     isBlockedByObjectComplementVerb(args) ||
-    isUnmarkedRelativeRoot(args)
+    isUnmarkedRelativeRoot(args) ||
+    isModalVerbComplement(args)
   ) {
     return false;
   }

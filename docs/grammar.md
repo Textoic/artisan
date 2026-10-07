@@ -286,6 +286,16 @@ The relative clause may end in a preposition and may use "did": "The book you as
 
 A free relative is the same adjacency with the pronoun as subject: "What *matters* is the year." `v-has-non-verb-object` now stands down when a relative pronoun is in front and both this word and the next are third-person singular. A plural noun could not be the subject of the second verb, so the first is a verb. "which *bud* is right" stays a noun, because "bud" is not a third-person form.
 
+### The main verb after a passive relative clause
+
+"A reader who was bored *starts* to think." "The letters that were not signed *sit* in a drawer." The relative clause is "who", "that" or "which", a form of "be" and a past form, with at most one adverb between the two. A passive rarely takes an object, so the word after it is rarely an object noun. "The soldier who was given *orders* obeyed" is the exception, and there the later verb takes the subject and the rule stands down. `isMainVerbAfterPassiveRelative` (tagger) reads that word as the main verb when the antecedent passes the tests of the unmarked case above: it is free to be a subject, it agrees with the word, and no later verb takes it. `n-is-main-verb-after-passive-relative` vetoes NOUN and the word is exempt from `v-non-verb-object`.
+
+An active relative clause is left alone. "The girl who paints *houses* lives here" has an object after the verb, and the rule in its first form, which accepted any verb after the pronoun, made "houses" the main verb. "What" is no pronoun for this rule: a heading mark is a noun, and "## What are *words*?" lost its noun.
+
+### The verb after a modal
+
+"These are rules another person can *check*." A bare form directly after a modal is the modal's verb. `n-is-modal-complement` already vetoed NOUN there. `v-is-noun` vetoed VERB in the same place when a singular noun stood before the modal ("person can check"), so both tags were refused and the tagger forced NOUN. `verbIsNoun` now stands down for a modal's complement.
+
 ### One finite verb to a sentence
 
 When a sentence opens with one noun phrase and exactly one word in it can be a finite verb, that word is the verb: "Only the total *matters*.", "Both *matter*.", "Details *matter*." `isTheOnlyFiniteVerb` requires every word before to be a noun, an adjective or an adverb, the word directly before to be able to head a subject (a noun reading and no determiner use, or "both"/"all"), and no other word to carry a finite or modal reading. The subject head must be a noun more often than anything else, or sit under a determiner ("the *total*"); "Best *wishes*" and "Quick *wins*" fail that test. The word itself must be a verb more often than a noun by its dictionary weights. Without that, every two-word heading became a clause: "Performance *issues*", "Test *results*", "Customer *reviews*". "matters" (0.75 verb) and "beats" (0.85) pass; "issues" (0.22) and "results" (0.19) do not. A word with a past verb reading counts as a finite verb whatever the current hypothesis calls it: in "The 2008 crash left an indelible mark" the model reads "left" as an adverb, and without this test "mark" became the verb. A gerund subject ("Being consistent matters more") is left to the model; allowing one made verbs out of the nouns in tweet fragments ("Like making *calls*", "the 4.0 numbering *leap*"), five gold tokens for one.
