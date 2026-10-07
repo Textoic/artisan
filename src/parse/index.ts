@@ -1484,14 +1484,56 @@ const isRelativeGerund = ({ tokens, stack }: OracleArgs) => {
   );
 };
 
+const cannotBeABareInfinitive = ({
+  feats: { Mood, Person, Tense },
+}: PartiallyParsedToken) => Boolean(Mood) || Person === 3 || Tense === "Past";
+
+const prepositionsThatAlsoSubordinate = ["for", "to"];
+
+const canStrand = ({
+  lemma,
+  feats: { AdpType, ConjType },
+}: PartiallyParsedToken) =>
+  AdpType === "Prep" &&
+  (ConjType == null || prepositionsThatAlsoSubordinate.includes(String(lemma)));
+
+const canBeAStrandedPreposition = (token: PartiallyParsedToken) =>
+  (token.xpos === "MARK" ||
+    (token.xpos == null && Boolean(token.misc.pos?.MARK))) &&
+  canStrand(token);
+
+const canBeAVerb = ({ xpos, misc: { pos = {} } }: PartiallyParsedToken) =>
+  xpos === "VERB" || (xpos == null && Boolean(pos.VERB));
+
+const endOfDoSupport = (tokens: PartiallyParsedToken[], index: number) => {
+  if (tokens[index].lemma !== "do") {
+    return index;
+  }
+
+  const negated = tokens[index + 1]?.lemma === "not" ? index + 1 : index;
+  const supported = tokens[negated + 1] as PartiallyParsedToken | undefined;
+  return supported != null &&
+    canBeAVerb(supported) &&
+    !cannotBeABareInfinitive(supported)
+    ? negated + 1
+    : index;
+};
+
+const isFiniteVerb = (token: PartiallyParsedToken | undefined) =>
+  token?.xpos === "VERB" &&
+  (Boolean(token.feats.Mood) || token.feats.VerbForm === "Fin");
+
 const isFollowedByAFiniteVerb = (
   tokens: PartiallyParsedToken[],
   index: number,
 ) => {
-  const next = tokens[index + 1] as PartiallyParsedToken | undefined;
+  const end = endOfDoSupport(tokens, index);
+  const after = tokens[end + 1] as PartiallyParsedToken | undefined;
+  const next =
+    after != null && canBeAStrandedPreposition(after) ? tokens[end + 2] : after;
   return (
-    next?.xpos === "VERB" &&
-    (Boolean(next.feats.Mood) || next.feats.VerbForm === "Fin")
+    isFiniteVerb(next) &&
+    (end === index || (next != null && cannotBeABareInfinitive(next)))
   );
 };
 
@@ -1621,13 +1663,53 @@ const verbAttachesToTheVerbBefore = (
   return continuesTheVerbGroup || isForcedConjunct;
 };
 
-const verbAttachesToTheMarkerBefore = ({ tokens, stack }: OracleArgs) => {
+const headBeyondDoSupport = (
+  heads: number[],
+  tokens: PartiallyParsedToken[],
+  verb: number,
+) => {
+  const head = heads[verb];
+  return head >= 0 && head < verb && tokens[head].lemma === "do"
+    ? heads[head]
+    : head;
+};
+
+const closesARelativeClause = (
+  heads: number[],
+  tokens: PartiallyParsedToken[],
+  marker: number,
+) => {
+  const verb = heads[marker];
+  const antecedent = verb >= 0 ? headBeyondDoSupport(heads, tokens, verb) : -2;
+  return (
+    verb >= 0 &&
+    antecedent >= 0 &&
+    antecedent < verb &&
+    tokens[verb].xpos === "VERB" &&
+    tokens[antecedent].xpos === "NOUN"
+  );
+};
+
+const isStrandedBeforeTheMainVerb = ({ heads, tokens, stack }: OracleArgs) => {
+  const currentIndex = stack[stack.length - 1];
+  const marker = stack[stack.length - 2];
+  return (
+    marker === currentIndex - 1 &&
+    canStrand(tokens[marker]) &&
+    cannotBeABareInfinitive(tokens[currentIndex]) &&
+    closesARelativeClause(heads, tokens, marker)
+  );
+};
+
+const verbAttachesToTheMarkerBefore = (args: OracleArgs) => {
+  const { tokens, stack } = args;
   const currentIndex = stack[stack.length - 1];
   const {
     feats: { AdpType: lastAdpType, ConjType: lastConjType },
   } = tokens[stack[stack.length - 2]];
-  return Boolean(
-    lastConjType || (lastAdpType && isGerund(tokens[currentIndex])),
+  return (
+    !isStrandedBeforeTheMainVerb(args) &&
+    Boolean(lastConjType || (lastAdpType && isGerund(tokens[currentIndex])))
   );
 };
 
@@ -3640,10 +3722,10 @@ const numberVerbsByTheirSuffix = (tokens: ParsedToken[]) =>
     }
   });
 
-export default function (
+const parseWhole = (
   tokens: Token[],
-  { weights = {} }: { weights?: FeatureWeights } = {},
-): ParsedToken[] {
+  weights: FeatureWeights,
+): ParsedToken[] => {
   const { heads, stack, tokens: taggedTokens } = tag(tokens, weights);
   const root =
     stack.length > 0
@@ -3693,4 +3775,114 @@ export default function (
 
   numberVerbsByTheirSuffix(taggedTokens as ParsedToken[]);
   return taggedTokens as ParsedToken[];
+};
+
+type Aside = { open: number; close: number };
+
+const isWord = ({ feats: { PunctType } }: Token) => PunctType == null;
+
+const closingBracketOf = (tokens: Token[], open: number) => {
+  let depth = 0;
+  return tokens.findIndex(({ form }, index) => {
+    if (index < open) {
+      return false;
+    }
+
+    depth += Number(form === "(") - Number(form === ")");
+    return depth === 0;
+  });
+};
+
+const SHORTEST_CLAUSE = 3;
+
+const isMostlyAVerb = ({ misc: { pos } }: Token) =>
+  Number(pos?.VERB ?? 0) >= 0.5;
+
+const holdsAClause = (inside: Token[]) =>
+  inside.filter(isWord).length >= SHORTEST_CLAUSE &&
+  inside.filter(isWord).slice(1).some(isMostlyAVerb);
+
+const asideIn = (tokens: Token[]): Aside | undefined => {
+  const open = tokens.findIndex(({ form }) => form === "(");
+  const close = open === -1 ? -1 : closingBracketOf(tokens, open);
+  const inside = tokens.slice(open + 1, Math.max(close, 0));
+  const leavesAWord = [
+    ...tokens.slice(0, Math.max(open, 0)),
+    ...tokens.slice(close + 1),
+  ].some(isWord);
+  return close > open && holdsAClause(inside) && leavesAWord
+    ? { open, close }
+    : undefined;
+};
+
+const range = (from: number, to: number) =>
+  Array.from({ length: Math.max(to - from, 0) }, (_, offset) => from + offset);
+
+const moved = (parsed: ParsedToken[], places: number[]) =>
+  parsed.forEach((token) => {
+    token.head = token.head === -1 ? -1 : places[token.head];
+    token.misc.children = token.misc.children.map((child) => places[child]);
+  });
+
+const hostOf = (tokens: ParsedToken[], open: number, root: number) => {
+  const before = range(0, open)
+    .reverse()
+    .find((index) => isWord(tokens[index]));
+  return before ?? root;
+};
+
+const hung = (tokens: ParsedToken[], child: number, head: number) => {
+  tokens[child].head = head;
+  tokens[child].misc.children = tokens[child].misc.children ?? [];
+  tokens[head].misc.children.push(child);
+  tokens[head].misc.children.sort((one, other) => one - other);
+};
+
+const numbered = (tokens: Token[], places: number[]) =>
+  places.map((place, id) => {
+    tokens[place].id = id;
+    return tokens[place];
+  });
+
+type Parse = (tokens: Token[]) => ParsedToken[];
+
+const parseAroundAside = (
+  tokens: Token[],
+  { open, close }: Aside,
+  parseEach: Parse,
+): ParsedToken[] => {
+  const inside = range(open + 1, close);
+  const outside = [...range(0, open), ...range(close + 1, tokens.length)];
+  const outer = parseEach(numbered(tokens, outside));
+  const inner = parseEach(numbered(tokens, inside));
+  const outerRoot = outside[outer.findIndex(({ head }) => head === -1)];
+  const innerRoot = inside[inner.findIndex(({ head }) => head === -1)];
+  moved(outer, outside);
+  moved(inner, inside);
+  const whole = numbered(tokens, range(0, tokens.length)) as ParsedToken[];
+  whole[open].xpos = "PUNCT";
+  whole[close].xpos = "PUNCT";
+  whole[open].misc.children = [];
+  whole[close].misc.children = [];
+  hung(whole, innerRoot, hostOf(whole, open, outerRoot));
+  hung(whole, open, innerRoot);
+  hung(whole, close, innerRoot);
+  return whole;
+};
+
+const parseSentence = (
+  tokens: Token[],
+  weights: FeatureWeights,
+): ParsedToken[] => {
+  const aside = asideIn(tokens);
+  return aside == null
+    ? parseWhole(tokens, weights)
+    : parseAroundAside(tokens, aside, (part) => parseSentence(part, weights));
+};
+
+export default function (
+  tokens: Token[],
+  { weights = {} }: { weights?: FeatureWeights } = {},
+): ParsedToken[] {
+  return parseSentence(tokens, weights);
 }

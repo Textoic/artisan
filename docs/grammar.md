@@ -282,6 +282,8 @@ The last test is what keeps "The day you start *classes* is hard", "The day you 
 
 When the rule fires it vetoes NOUN and exempts the word from `v-non-verb-object`, so the answer does not depend on the model. On the parser side `isPronounRelativeBeforeTheMainVerb` hangs the relative verb on the antecedent when its subject is a pronoun, the verb is no modal, and the next word is already a finite verb. A modal is excluded because a bare infinitive carries `VerbForm=Fin`: "If you find a book it will help" otherwise read "it will" as a relative clause on "book". A determiner-led subject already took that path. A quoted subject does not: 'The year "the $200" begins beats' gets the right tags and the wrong heads.
 
+The relative clause may end in a preposition and may use "did": "The book you asked for *is* here", "A puzzle you did not ask for *is* just an interruption". `isFollowedByAFiniteVerb` looks past "do", "not", the bare verb and one stranded preposition, and `isStrandedBeforeTheMainVerb` stops that preposition from taking the main verb as its object. A preposition can strand when it has no `ConjType`, or is "for" or "to". "and" and "or" also carry `AdpType=Prep` and are excluded by that test. "A word you do not know *is* a wall" still fails: with present-tense "do" the bare verb becomes the root.
+
 A free relative is the same adjacency with the pronoun as subject: "What *matters* is the year." `v-has-non-verb-object` now stands down when a relative pronoun is in front and both this word and the next are third-person singular. A plural noun could not be the subject of the second verb, so the first is a verb. "which *bud* is right" stays a noun, because "bud" is not a third-person form.
 
 ### One finite verb to a sentence
@@ -319,9 +321,23 @@ Comparative and superlative forms carry `Degree=Cmp|Sup` (lexical only; the perc
 
 Relative *pronouns* ("who", "whom", "whose", "which", "what") are NOUN by dictionary — MARK was removed from their entries, not fought with rules. "that" keeps MARK (real complementizer); relative *adverbs* ("where", "when", "why") stay MARK. `PronType=Rel` is carried by both groups, so it means "relative", not "relative pronoun" — predicates that test it match "when" as readily as "who"; what separates the groups is the `pos` set. Once a relative pronoun is NOUN it fills a slot in its own clause: the relative verb attaches to the antecedent and the pronoun hangs off the verb. Unmarked ("the report *filed* yesterday") and reduced relatives are recognized structurally (`isUnmarkedRelativeRoot`, `canBeUnmarkedPastRelative`), keyed on non-finite past forms and clause continuity.
 
+### Words fixed by hand
+
+"art" is a noun with its own lemma, "dying" has the lemma "die", and "edit" is `VERB 0.6, NOUN 0.4`. All three are entries in `commonWords` in `scripts/handpicked-words.ts`. The inflection table claims "art" for "be" and "dying" for "dye", and WordNet knows no noun "edit". A handpicked form is never added as somebody else's inflection, which is what makes the entry stick.
+
+### A gerund as a noun
+
+"a shared *understanding* of the book", "the *reading* of the will", "our *understanding* of the rule". A gerund is a noun when "of" follows it and a determiner stands directly in front, or an adjective with a determiner in front of that (`isNominalGerundBeforeOf`). `gerundIsVerbal` stands down in that case, so NOUN is not vetoed. A verbal gerund takes its object bare ("understanding the book"). "He was busy *understanding* of course nothing" has no determiner and stays a verb.
+
+### A clause in parentheses
+
+"A novelist who drops a rare word (it means beauty) into a chapter is not being exact." A pair of round brackets is parsed apart from the sentence around it when it holds at least three words, one of them after the first a verb more often than not by its dictionary weights, and a word is left outside (`asideIn`, at the bottom of `src/parse/index.ts`). The outside is tagged and parsed as if the brackets were not there, the inside as a sentence of its own, and the inner root hangs on the last word before the opening bracket. The brackets hang on the inner root. Nested and repeated pairs are handled by parsing the outside again. Shorter brackets and brackets with no likely verb ("(base)", "(red, green and blue)") are left to the ordinary transitions.
+
 ### Possessive 's
 
 's with lemma `be` and `AdpType=Post` is either the verb "is" or the possessive particle, and **two rules on opposite lists ask the same question from opposite sides**: is there a substantive noun in front? `mark-poss-particle-no-args` vetoes the marker reading when there is not — a possessive hangs off a substantive noun, never a pronoun (English spells those "whose", "his"), so "who's" is always "who is" — and `v-is-pos-mark` vetoes the verb reading only when there is, plus further evidence that a be-verb cannot fit. The veto contexts are disjoint, so the two can never both fire; the day their noun tests drift apart, 's is left with no legal tag at all. Before relative pronouns became nouns the two agreed by accident; now they agree on purpose.
+
+"somebody *else's* street": "else" after "somebody", "someone", "anybody", "anyone", "everybody", "everyone", "nobody" or "one" counts as a noun in front for both rules (`isElseAfterAPronoun`), when the next word can be a noun and is no participle. "Someone else's *coming*" and "Everyone else's *happy*" keep the verb.
 
 ## Known collisions and traps
 

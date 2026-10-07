@@ -16,6 +16,105 @@ Nor does routine history: git already records what changed and when.
 
 ## Log
 
+### 2026-10-06 — "art" was a form of "be", and a clause in parentheses took the root
+
+enlint needed five sentences from model-written essays to parse before it
+could read them: "Art is the thing you are left with", "a shared
+understanding of the book", "somebody else's street", "A puzzle you did not
+ask for is just an interruption" and "A novelist who drops pulchritude (it
+means beauty) into a chapter is not being exact". Each failed for a different
+reason. The grammar is in `docs/grammar.md` ("Words fixed by hand", "A gerund
+as a noun", "Possessive 's", "The main verb after an unmarked relative
+clause", "A clause in parentheses").
+
+Counted on every token of the gold set (the loop the measurement note asks
+for, written and thrown away), on the audit, and on a snapshot of
+`form/xpos/head` over 1,314 sentences (the 40 essays of the lab run
+`2026-10-06T06-41-09-human-grok-6` and the author's 13 essays):
+
+| | gold, model | gold, rules | audit right | `npm test` |
+| --- | --- | --- | --- | --- |
+| before | 5781/6132 | 5753/6132 | 1708 | 644 |
+| dictionary and tagger rules | not counted | not counted | 1709 | 644 |
+| with the parser changes | 5780 | 5755 | 1708 | 652 |
+
+78 of the 1,314 snapshot sentences changed. 39 of those are "art", which was
+VERB or ADJ in every one of them. 32 hold a parenthesis; that count was taken
+before brackets with no possible verb were left alone, so it is now lower.
+
+What changed, and what each cost:
+
+- `inflections.json` lists "art" under "be" ("are, art"), so the word carried
+  lemma `be`, `Tense=Past` and the tags NOUN, VERB and ADJ at weight 1 each.
+  "Art is rules" came out with "Art" as the root verb. A handpicked entry now
+  makes it a noun with its own lemma. A handpicked form is skipped as an
+  inflection, so "thou art" is lost.
+- "edit" was VERB only, because WordNet lists no noun and
+  `dropTagsWordnetDoesNotList` removes the tag. It is `VERB 0.6, NOUN 0.4` by
+  hand. The corpus weights say `NOUN 0.85` (tweets that open "Edit:"), and
+  with them "I don't mean edit once" lost its verb. It still does: "mean"
+  became the verb and "edit" its noun object.
+- "dying" had the lemma "dye", because "dye" lists "dyeing, dying" and comes
+  after "die" in the build. It is handpicked to "die".
+- `gerundIsVerbal` read any gerund before a marker as a verb, so "a shared
+  understanding of" had VERB and NOUN both vetoed and ADJ forced. A gerund
+  after a determiner, or after an adjective that follows one, and before
+  "of", is now left a noun.
+- "else" after "somebody", "someone", "anybody", "anyone", "everybody",
+  "everyone", "nobody" or "one" can carry the possessive, when the next word
+  can be a noun and is no participle. Allowing an adjective made "Everyone
+  else's happy" a possessive. Both 's rules read the
+  same predicate, `isElseAfterAPronoun`. "Someone else's coming" stays "is".
+- A preposition that closes a relative clause no longer takes the main verb
+  as its object: "The book you asked for *is* here". "for" and "to" count
+  although they carry `ConjType=Sub`. "and" and "or" carry `AdpType=Prep` in
+  the dictionary and must not count: with them "signed the treaty or *lost*
+  the battle" moved its second verb to the root.
+- `isFollowedByAFiniteVerb` looks past "do", "not", the bare verb and a
+  stranded preposition, so "A puzzle you did not ask for *is*" attaches "did"
+  to "puzzle". The present tense still fails: in "A word you do not know is a
+  wall", "know" becomes the root.
+- A pair of round brackets that holds three words or more, one of them after
+  the first a verb more often than not, with a word left outside, is parsed
+  as two sentences: the text outside and the text inside. The first version
+  asked only for a word able to be a verb, and it turned "(base)" and the
+  "blue" of "(red, green and blue)" into verbs. The inner root hangs on the last word before the bracket. Before,
+  "(it means beauty)" gave the sentence its root. Brackets with no possible
+  clause in them ("(advertisement)", "(via @user)") parse as before, because
+  three tests are fitted to the old attachment and nothing asked for the
+  change. Token ids are renumbered for each part and restored, since
+  `isVerbsAdjObject` and others index the token array by `id`.
+
+The model lost two gold tokens inside parentheses and won one ("my iPhone 4
+( post #ios5 upgrade )" now tags "4" MARK; "the Toshiba Thrive )" tags
+"Thrive" VERB). The rules alone won two. Heads moved in 13 gold sentences, 12
+of them with a parenthesis, and no script scores heads.
+
+One test changed its expectation: "She thought, ( 'men' are such pigs lol)".
+"lol" now hangs on "are", inside the brackets, and the comma on "thought".
+
+The gold counts in the table predate two fixes made after an independent
+review (the possessive and the bracket test above). After them the audit is
+1708 and `npm test` 652; the every-token loop was not run again.
+
+Still wrong, found while doing this and left alone:
+
+- "I will further edit it later on": "further" is now the verb and "edit" a
+  noun. It was right before the hand weights.
+- "Good editing strips away jargon" tags "strips" NOUN, "They are stripping
+  away the context" tags "stripping" ADJ, and "We have a shared
+  understanding." tags "understanding" ADJ, since the gerund rule needs "of".
+
+- "I am not saying college makes you a better person": "saying" hangs on
+  "makes", as if it were a gerund subject. enlint's contrast rule misses the
+  sentence for that reason.
+- "The tide came in, and the boats left": "left" is ADV.
+- "a staff member with a laptop called that": "member" hangs on "and", the
+  verb on the first clause. Three shapes come out for "X, and Y": the verb on
+  "and" with its subject below it, the subject on "and" with the verb below
+  it, and the subject on "and" with the verb elsewhere. enlint reads all
+  three.
+
 ### 2026-10-03 — two finite verbs side by side, and a dictionary that turned "matter" into "more matte"
 
 enlint needed "beats" and "matters" tagged as verbs in sentences like "the

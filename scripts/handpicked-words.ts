@@ -4911,6 +4911,31 @@ const commonWords = [
     },
   },
   {
+    form: "art",
+    fields: { lemma: "art", pos: { NOUN: 1 }, Number: "Sing" },
+  },
+  {
+    form: "edit",
+    keepsItsWeights: true,
+    fields: {
+      lemma: "edit",
+      pos: { VERB: 0.6, NOUN: 0.4 },
+      VerbForm: "Fin",
+      Tense: "Pres",
+      Number: "Sing",
+      Person: 1,
+    },
+  },
+  {
+    form: "dying",
+    fields: {
+      lemma: "die",
+      pos: { VERB: 1, ADJ: 1, NOUN: 1 },
+      VerbForm: "Part",
+      Tense: "Pres",
+    },
+  },
+  {
     form: "confident",
     fields: { lemma: "confident", pos: { ADJ: 1 } },
   },

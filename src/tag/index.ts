@@ -1418,19 +1418,36 @@ const verbIsPrecededByNounOrAdj = (taggedWindow: PartiallyParsedToken[]) => {
   return false;
 };
 
-const gerundIsVerbal = ({
-  taggedWindow,
-  foreToken: {
-    feats: { Tense: foreTense },
-  },
-  aftToken: {
-    misc: { pos: aftPos = {} },
-    feats: { PronType: aftPronType },
-  },
-}: RuleArgs) =>
-  (verbIsPrecededByNounOrAdj(taggedWindow) && foreTense === "Past") ||
-  Boolean(aftPronType) ||
-  Boolean(aftPos.MARK);
+const opensANounPhrase = ({
+  xpos,
+  feats: { PronType },
+}: PartiallyParsedToken) => xpos === "ADJ" && PronType != null;
+
+const followsADeterminerPhrase = ({ foreToken, foreToken2 }: RuleArgs) =>
+  opensANounPhrase(foreToken) ||
+  (foreToken.xpos === "ADJ" && opensANounPhrase(foreToken2));
+
+const isNominalGerundBeforeOf = (args: RuleArgs) =>
+  args.aftToken.lemma === "of" && followsADeterminerPhrase(args);
+
+const gerundIsVerbal = (args: RuleArgs) => {
+  const {
+    taggedWindow,
+    foreToken: {
+      feats: { Tense: foreTense },
+    },
+    aftToken: {
+      misc: { pos: aftPos = {} },
+      feats: { PronType: aftPronType },
+    },
+  } = args;
+  return (
+    !isNominalGerundBeforeOf(args) &&
+    ((verbIsPrecededByNounOrAdj(taggedWindow) && foreTense === "Past") ||
+      Boolean(aftPronType) ||
+      Boolean(aftPos.MARK))
+  );
+};
 
 const isSentenceInitialAfterAdverbs = (
   tokens: PartiallyParsedToken[],
@@ -2725,29 +2742,52 @@ const followingClauseRejectsBeVerb = (
   return false;
 };
 
-const isPossessiveMarker = ({
-  tokens,
-  heads,
-  index: beVerbIndex,
-  foreToken: {
-    lemma: foreLemma,
-    xpos: foreTag,
-    feats: { PronType: forePronType },
-  },
-  token: {
-    lemma,
-    feats: { AdpType },
-  },
-}: RuleArgs) => {
-  const possessesAPrecedingNoun =
+const pronounsThatTakeElse = [
+  "somebody",
+  "someone",
+  "anybody",
+  "anyone",
+  "everybody",
+  "everyone",
+  "nobody",
+  "one",
+];
+
+const canBeAPossessedNoun = ({
+  misc: { pos = {} },
+  feats: { VerbForm },
+}: PartiallyParsedToken) => Boolean(pos.NOUN) && VerbForm !== "Part";
+
+const isElseAfterAPronoun = ({ foreToken, foreToken2, aftToken }: RuleArgs) =>
+  foreToken.lemma === "else" &&
+  pronounsThatTakeElse.includes(String(foreToken2.lemma)) &&
+  canBeAPossessedNoun(aftToken);
+
+const isPossessiveMarker = (args: RuleArgs) => {
+  const {
+    tokens,
+    heads,
+    index: beVerbIndex,
+    foreToken: {
+      lemma: foreLemma,
+      xpos: foreTag,
+      feats: { PronType: forePronType },
+    },
+    token: {
+      lemma,
+      feats: { AdpType },
+    },
+  } = args;
+  const followsAPossessor =
+    isElseAfterAPronoun(args) ||
+    (foreTag === "NOUN" &&
+      !["he", "she", "it"].includes(String(foreLemma)) &&
+      !["Prs", "Dem", "Rel"].includes(String(forePronType)));
+  return (
     AdpType === "Post" &&
     lemma === "be" &&
     beVerbIndex !== tokens.length - 1 &&
-    !["he", "she", "it"].includes(String(foreLemma)) &&
-    foreTag === "NOUN" &&
-    !["Prs", "Dem", "Rel"].includes(String(forePronType));
-  return (
-    possessesAPrecedingNoun &&
+    followsAPossessor &&
     (hasIncompatibleVerbOnTheLeft(tokens, heads, beVerbIndex) ||
       followingClauseRejectsBeVerb(tokens, heads, beVerbIndex))
   );
@@ -3312,19 +3352,24 @@ const isPostpositionAfterVerb = ({
   foreToken: { xpos: foreTag },
 }: RuleArgs) => AdpType === "Post" && foreTag === "VERB";
 
-const isPossParticleWithoutArguments = ({
-  token: {
-    lemma,
-    feats: { AdpType },
-  },
-  foreToken: {
-    xpos: foreTag,
-    feats: { PronType: forePronType },
-  },
-}: RuleArgs) =>
-  AdpType === "Post" &&
-  lemma === "be" &&
-  (foreTag !== "NOUN" || ["Prs", "Dem", "Rel"].includes(String(forePronType)));
+const isPossParticleWithoutArguments = (args: RuleArgs) => {
+  const {
+    token: {
+      lemma,
+      feats: { AdpType },
+    },
+    foreToken: {
+      xpos: foreTag,
+      feats: { PronType: forePronType },
+    },
+  } = args;
+  return (
+    AdpType === "Post" &&
+    lemma === "be" &&
+    !isElseAfterAPronoun(args) &&
+    (foreTag !== "NOUN" || ["Prs", "Dem", "Rel"].includes(String(forePronType)))
+  );
+};
 
 const isRelativePronoun = ({
   steps,
