@@ -618,26 +618,41 @@ const nounIsDeterminer = (args: RuleArgs) => {
   );
 };
 
+const isAnaphoricOne = ({ form, misc: { pos = {} } }: PartiallyParsedToken) =>
+  ["one", "ones"].includes(form?.toLowerCase() ?? "") && Boolean(pos.NOUN);
+
+const isNumberBeforeAnaphoricOne = (
+  token: PartiallyParsedToken,
+  aftToken: PartiallyParsedToken,
+) => token.feats.NumType != null && isAnaphoricOne(aftToken);
+
 const isAdjectiveBetweenDeterminerAndNoun = ({
-  foreToken: {
-    xpos: foreTag,
-    feats: { PronType: forePronType },
-  },
-  token: {
-    feats: { NumType },
-  },
-  aftToken: {
-    xpos: aftTag,
-    feats: { PronType: aftPronType },
-    misc: { pos: aftTags = {} },
-  },
-}: RuleArgs) =>
-  NumType !== "Card" &&
-  foreTag === "ADJ" &&
-  Boolean(forePronType) &&
-  aftTag === "NOUN" &&
-  !aftPronType &&
-  !aftTags.MARK;
+  foreToken,
+  token,
+  aftToken,
+}: RuleArgs) => {
+  const {
+    xpos,
+    feats: { PronType },
+    misc: { pos = {} },
+  } = aftToken;
+  const anaphoric = isAnaphoricOne(aftToken);
+  if (isNumberBeforeAnaphoricOne(token, aftToken)) {
+    return false;
+  }
+
+  return (
+    token.feats.NumType !== "Card" &&
+    foreToken.xpos === "ADJ" &&
+    Boolean(foreToken.feats.PronType) &&
+    (xpos === "NOUN" || anaphoric) &&
+    (!PronType || anaphoric) &&
+    !pos.MARK
+  );
+};
+
+const isAdjectiveBeforeAnaphoricOne = (args: RuleArgs) =>
+  isAnaphoricOne(args.aftToken) && isAdjectiveBetweenDeterminerAndNoun(args);
 
 const isAdverbModifiedPredicate = ({
   foreToken: { xpos: foreTag },
@@ -1882,7 +1897,54 @@ const isTheOnlyFiniteVerb = (args: RuleArgs) => {
   );
 };
 
+const isFixedDegreeAdverb = ({ foreToken, token, aftToken }: RuleArgs) => {
+  const previous = foreToken.form?.toLowerCase();
+  const word = token.form.toLowerCase();
+  return (
+    Boolean(token.misc.pos.ADV) &&
+    ((previous === "how" && word === "far") ||
+      (previous === "at" &&
+        ["least", "most"].includes(word) &&
+        aftToken.feats.PronType === "Prs"))
+  );
+};
+
+const finiteCopulas = new Set(["am", "is", "are", "was", "were"]);
+
+const endsDegreeSubject = ({ misc: { pos } }: PartiallyParsedToken) =>
+  pos.PUNCT || pos.MARK || (pos.VERB && !pos.NOUN);
+
+const hasDegreeCopula = ({ tokens, index }: RuleArgs) => {
+  const ending = tokens.findIndex(
+    (token, at) => at > index + 1 && endsDegreeSubject(token),
+  );
+  if (ending < 0 || !finiteCopulas.has(tokens[ending].form.toLowerCase())) {
+    return false;
+  }
+  const next = tokens[ending + 1];
+  return !(next?.misc.pos.VERB && next.feats.Tense === "Past");
+};
+
+const isFrontedDegreeAdjective = (args: RuleArgs) => {
+  const { foreToken, token, aftToken } = args;
+  const { pos } = token.misc;
+  return (
+    foreToken.form?.toLowerCase() === "how" &&
+    Boolean(pos.ADJ) &&
+    !pos.VERB &&
+    !pos.ADV &&
+    ["Prs", "Art"].includes(aftToken.feats.PronType ?? "") &&
+    hasDegreeCopula(args)
+  );
+};
+
 const nounRules: Rule[] = [
+  {
+    id: "n-is-fronted-degree-adj",
+    when: isFrontedDegreeAdjective,
+    features: null,
+  },
+  { id: "n-is-fixed-degree-adverb", when: isFixedDegreeAdverb, features: null },
   { id: "n-is-do-supported-verb", when: isTheVerbDoSupports, features: null },
   { id: "n-is-only-finite-verb", when: isTheOnlyFiniteVerb, features: null },
   {
@@ -2608,6 +2670,11 @@ const isGerundAdjective = ({ tokens, index }: RuleArgs) => {
   return hasModifiableNounAfter(tokens, index + 1);
 };
 
+const isScalarAtPhrase = (tokens: PartiallyParsedToken[], index: number) =>
+  tokens[index].form.toLowerCase() === "at" &&
+  tokens[index + 1]?.xpos === "ADV" &&
+  ["least", "most"].includes(tokens[index + 1].form.toLowerCase());
+
 const findLastDegree1Marker = (
   tokens: PartiallyParsedToken[],
   stack: number[],
@@ -2619,7 +2686,12 @@ const findLastDegree1Marker = (
       xpos,
       feats: { AdpType, ConjType },
     } = tokens[index];
-    if (xpos === "MARK" && AdpType && !ConjType) {
+    if (
+      xpos === "MARK" &&
+      AdpType &&
+      !ConjType &&
+      !isScalarAtPhrase(tokens, index)
+    ) {
       return index;
     }
 
@@ -3228,6 +3300,21 @@ const adjIsForcedVerb = (args: RuleArgs) => {
 
 const adjectiveRules: Rule[] = [
   {
+    id: "adj-fronted-degree",
+    when: isFrontedDegreeAdjective,
+    features: { parentDirection: "R" },
+  },
+  {
+    id: "adj-is-fixed-degree-adverb",
+    when: isFixedDegreeAdverb,
+    features: null,
+  },
+  {
+    id: "adj-before-anaphoric-one",
+    when: isAdjectiveBeforeAnaphoricOne,
+    features: { parentDirection: "R" },
+  },
+  {
     id: "adj-worth-gerund",
     when: isWorthGerund,
     features: { parentDirection: "L" },
@@ -3364,6 +3451,7 @@ const isDirectObject = ({
 };
 
 const adverbRules: Rule[] = [
+  { id: "adv-fixed-degree", when: isFixedDegreeAdverb, features: {} },
   { id: "adv-is-subj", when: advIsSubject, features: null },
   { id: "adv-is-adj", when: isAdjective, features: null },
   { id: "adv-is-verb-object", when: isDirectObject, features: null },

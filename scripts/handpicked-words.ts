@@ -4888,6 +4888,20 @@ const commonWords = [
   ...nouns,
   ...izeVerbs,
   {
+    form: "sensitive",
+    keepsItsWeights: true,
+    fields: {
+      lemma: "sensitive",
+      pos: { NOUN: 0.01, ADJ: 0.99 },
+      Number: "Sing",
+    },
+  },
+  {
+    form: "well-rounded",
+    keepsItsWeights: true,
+    fields: { lemma: "well-rounded", pos: { ADJ: 1 } },
+  },
+  {
     form: "matter",
     keepsItsWeights: true,
     fields: {

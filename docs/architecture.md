@@ -16,6 +16,57 @@ Nor does routine history: git already records what changed and when.
 
 ## Log
 
+### 2026-11-06, admit fronted degree adjectives before their subjects
+
+The bounded humanizer replay induced "how sensitive that he is" and "how
+well-rounded that a fictional detective is". The dictionary admitted only a
+noun for "sensitive" and lacked the normalized "wellrounded" entry. Adding
+adjective readings alone did not fix the personal-pronoun case: the tagger
+rejected an adjective before an otherwise unmodifiable pronoun.
+
+Handpicked lexical data now admits the ordinary adjective and retains the
+rarer noun reading for "sensitive", including its singular feature. A bounded
+degree-predicate rule accepts an adjective immediately after "how" when a
+personal pronoun or article opens the subject and an unambiguous finite copula
+follows before another marker or clause boundary. It excludes words with verb
+or adverb readings and a following past-verb auxiliary construction. It does
+not claim complete fronted-predicate attachment or coverage of complex
+subjects; "how old these sensors are" remains outside the new pattern.
+
+Only two dictionary entries change on rebuild. All 737 tests pass, with clean
+lint and typecheck. A paired audit against the frozen replay runtime scores
+the same 6,132 tokens in each mode, with no tag changes or accuracy changes.
+Eight annotation entries retain their token-count mismatch. The lab's
+32-text detector audit removes two false relative findings from one raw draft
+and changes none on eight originals or sixteen final texts. Independent review
+finds no actionable issue and checks substantive nouns and genuine nested
+relatives. Evidence lives in the lab's
+`data/style-ab/2026-11-06-post-replay-repairs/`. Historical results stay frozen.
+
+### 2026-11-05 — degree adverbs and anaphoric one caused damaging lint repairs
+
+The humanizer screen exposed noun tags in "how far they stick out", "at least
+I don't have to picture" and "the ordinary one would do". enlint then offered
+relative-clause markers that broke the grammar. Fixed degree readings now win
+for "how far" and for "at least/most" before a personal pronoun. An adjective
+between a determiner and anaphoric "one/ones" stays an adjective even while
+the next token remains untagged in the beam.
+
+Forcing every "at least" to an adverb also changed "will" to a noun in the
+annotated Amazon parenthetical. The narrower personal-pronoun condition avoided
+that example but review found the same failure in "At least he will tell you".
+The marker search now treats "at" followed by scalar "least/most" tagged as
+an adverb as a complete phrase, rather than a preposition awaiting a noun.
+Review also caught ordinal numbers before "one" becoming adjectives. The
+anaphoric adjective path now preserves the tagset's noun reading for numbers.
+The paired audit uses the frozen engine from the lab's all-essay goal. Both
+modes score 6,132 tokens from 441 of 449 entries. Eight entries have the same
+token-count mismatch before and after. Rules improve from 5,754 to 5,755 correct
+tags; the trained model improves from 5,780 to 5,781. Only "good" in "a good
+one(commercial)" changes. All 709 tests pass, including 41 new controls. The
+lab stores the exact counts in `tag-regression-audit.json` under its
+`2026-11-04-all-essay-goal` directory.
+
 ### 2026-10-07 — a modal's verb was forced to a noun, and a passive relative clause hid the main verb
 
 enlint needed two sentences from the lab to parse before it could count
